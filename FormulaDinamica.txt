@@ -1,0 +1,96 @@
+Evaluar fórmulas dinámicas con exp4j
+====================================
+
+Este ejemplo va en un controlador NUEVO y no requiere modificar
+src/main/java/com/ies_juan_bosco/formulario_fisica/modelo/Formulas.java.
+
+1. Dependencia
+--------------
+
+En build.gradle, dentro del bloque dependencies, añade:
+
+implementation 'net.objecthunter:exp4j:0.4.8'
+
+Después, sincroniza Gradle.
+
+2. Controlador
+--------------
+
+Crea el archivo:
+src/main/java/com/ies_juan_bosco/formulario_fisica/controlador/FormulaDinamicaController.java
+
+Con este contenido:
+
+package com.ies_juan_bosco.formulario_fisica.controlador;
+
+import net.objecthunter.exp4j.Expression;
+import net.objecthunter.exp4j.ExpressionBuilder;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/calculadora")
+public class FormulaDinamicaController {
+
+    public record FormulaDinamicaRequest(
+            String expresion,
+            Map<String, Double> parametros
+    ) {}
+
+    @PostMapping("/formula-dinamica")
+    public ResponseEntity<?> evaluarDinamico(
+            @RequestBody FormulaDinamicaRequest req
+    ) {
+        if (req == null || req.expresion() == null || req.expresion().isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "La expresión es obligatoria"));
+        }
+
+        Map<String, Double> parametros =
+                req.parametros() != null ? req.parametros() : Map.of();
+
+        try {
+            Expression expression = new ExpressionBuilder(req.expresion())
+                    .variables(parametros.keySet())
+                    .build()
+                    .setVariables(parametros);
+
+            double resultado = expression.evaluate();
+
+            return ResponseEntity.ok(Map.of(
+                    "expresion", req.expresion(),
+                    "totalVariables", parametros.size(),
+                    "resultado", resultado
+            ));
+        } catch (IllegalArgumentException | ArithmeticException ex) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Expresión inválida o faltan variables"));
+        }
+    }
+}
+
+3. Petición de ejemplo
+----------------------
+
+POST /api/calculadora/formula-dinamica
+Content-Type: application/json
+
+{
+  "expresion": "masa * gravedad",
+  "parametros": {
+    "masa": 2.0,
+    "gravedad": 9.81
+  }
+}
+
+El resultado será 19.62. Los nombres usados en la expresión deben coincidir
+con las claves del mapa "parametros".
+
+Nota: la aplicación también usa Spring Security. Si esta ruta requiere estar
+autenticado, envía las credenciales/token que espera la configuración de
+seguridad del proyecto.
